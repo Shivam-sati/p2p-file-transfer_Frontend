@@ -1,0 +1,25 @@
+import { motion } from 'motion/react';
+import { cn } from '../../lib/utils';
+import { ReactNode } from 'react';
+
+interface CardProps {
+  children: ReactNode;
+  className?: string;
+  hover?: boolean;
+}
+
+export const Card = ({ children, className, hover = true }: CardProps) => {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      whileHover={hover ? { y: -4, transition: { duration: 0.2 } } : undefined}
+      className={cn(
+        'glass-card rounded-3xl p-6 transition-all duration-300',
+        className
+      )}
+    >
+      {children}
+    </motion.div>
+  );
+};
