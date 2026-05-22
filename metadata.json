@@ -1,0 +1,8 @@
+{
+  "name": "P2P Nexus - Ultra-Fast File Sharing",
+  "description": "A premium, high-performance P2P file transfer application featuring chunked uploads, WebRTC direct sharing, and advanced analytics.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
