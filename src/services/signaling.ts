@@ -1,79 +1,73 @@
-import { SignalingMessage } from '../types/api';
+import { Client } from '@stomp/stompjs';
+import SockJS from 'sockjs-client';
+import type { SignalingMessage } from '../types/api';
+type MessageHandler = (msg: SignalingMessage) => void;
 
 class SignalingService {
-  private socket: WebSocket | null = null;
-  private listeners: ((msg: SignalingMessage) => void)[] = [];
-  private reconnectAttempts = 0;
-  private maxReconnectAttempts = 5;
-  private reconnectDelay = 1000;
+  private client:   Client | null = null;
+  private peerId:   string        = crypto.randomUUID();
+  private roomId:   string        = '';
+  private handlers: MessageHandler[] = [];
 
-  connect(fileId: string) {
-    const wsUrl = import.meta.env.VITE_WS_URL || 'ws://localhost:8080/ws/p2p';
-    const url = `${wsUrl}?fileId=${fileId}`;
-    
-    try {
-      this.socket = new WebSocket(url);
+  getPeerId(): string { return this.peerId; }
 
-      this.socket.onopen = () => {
-        console.log('WebSocket connected');
-        this.reconnectAttempts = 0;
-      };
+  connect(roomId: string): Promise<void> {
+    this.roomId = roomId;
 
-      this.socket.onmessage = (event) => {
-        try {
-          const msg = JSON.parse(event.data);
-          this.listeners.forEach(l => l(msg));
-        } catch (err) {
-          console.error('Failed to parse WebSocket message:', err);
-        }
-      };
-
-      this.socket.onerror = (error) => {
-        console.error('WebSocket error:', error);
-      };
-
-      this.socket.onclose = () => {
-        console.log('WebSocket closed');
-        this.attemptReconnect(fileId);
-      };
-    } catch (err) {
-      console.error('Failed to create WebSocket connection:', err);
-    }
+    return new Promise((resolve, reject) => {
+      this.client = new Client({
+        webSocketFactory: () => new SockJS('/ws/signaling'),
+        reconnectDelay: 0,
+        onStompError: () => reject(new Error('Signaling WebSocket failed')),
+        onConnect: () => {
+          this.client!.subscribe(
+            `/topic/peer/${this.peerId}`,
+            (frame) => {
+              try {
+                const msg: SignalingMessage = JSON.parse(frame.body);
+                this.handlers.forEach(h => h(msg));
+              } catch (_) {}
+            }
+          );
+          // Join the room
+          this.send({ type: 'join', roomId, fromPeerId: this.peerId, toPeerId: null, payload: null });
+          resolve();
+        },
+      });
+      this.client.activate();
+    });
   }
 
-  private attemptReconnect(fileId: string) {
-    if (this.reconnectAttempts < this.maxReconnectAttempts) {
-      this.reconnectAttempts++;
-      const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1);
-      console.log(`Attempting to reconnect in ${delay}ms (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
-      
-      setTimeout(() => {
-        this.connect(fileId);
-      }, delay);
-    } else {
-      console.error('Max reconnection attempts reached');
-    }
+  send(msg: SignalingMessage): void {
+    if (!this.client?.connected) return;
+    this.client.publish({
+      destination: '/app/signal',
+      body: JSON.stringify(msg),
+    });
   }
 
-  onMessage(callback: (msg: SignalingMessage) => void) {
-    this.listeners.push(callback);
+  onMessage(handler: MessageHandler): () => void {
+    this.handlers.push(handler);
     return () => {
-      this.listeners = this.listeners.filter(l => l !== callback);
+      this.handlers = this.handlers.filter(h => h !== handler);
     };
   }
 
-  send(message: Omit<SignalingMessage, 'senderId'>) {
-    if (this.socket?.readyState === WebSocket.OPEN) {
-      this.socket.send(JSON.stringify(message));
-    } else {
-      console.warn('WebSocket is not open. Message not sent.');
+  disconnect(): void {
+    if (this.client?.connected) {
+      this.send({
+        type: 'leave',
+        roomId: this.roomId,
+        fromPeerId: this.peerId,
+        toPeerId: null,
+        payload: null,
+      });
     }
-  }
-
-  disconnect() {
-    this.reconnectAttempts = this.maxReconnectAttempts; // Prevent reconnection
-    this.socket?.close();
+    try { this.client?.deactivate(); } catch (_) {}
+    this.client   = null;
+    this.handlers = [];
   }
 }
 
+// Singleton — one signaling connection per browser tab
 export const signalingService = new SignalingService();
