@@ -1,167 +1,169 @@
-import { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useEffect } from 'react';
+import { useParams, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
-import { Download as DownloadIcon, Shield, File, Info, Zap, AlertTriangle, Box } from 'lucide-react';
-import { Card } from '../components/common/Card';
-import { Button } from '../components/common/Button';
-import { shareApi } from '../services/shareApi';
-import { useWebRTC } from '../hooks/useWebRTC';
-import { formatBytes, cn } from '../lib/utils';
-import { ShareInfo } from '../types/api';
+import {
+  FileText, Download as DownloadIcon, CheckCircle2,
+  AlertCircle, Loader2, ArrowLeft, Clock, Lock
+} from 'lucide-react';
+import { Button }       from '../components/common/Button';
+import { Card }         from '../components/common/Card';
+import { ProgressBar }  from '../components/common/ProgressBar';
+import { useDownload }  from '../hooks/useDownload';
+import { formatBytes, formatDate } from '../lib/utils';
 
 export default function Download() {
-  const { code } = useParams<{ code: string }>();
-  const [info, setInfo] = useState<ShareInfo | null>(null);
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState<string | null>(null);
-  const [isVerifying, setIsVerifying] = useState(true);
-  const [showPasswordInput, setShowPasswordInput] = useState(false);
-
-  // WebRTC logic (for receiver side)
-  // We'll get the fileId from info after verification
-  const { connectionStatus, transferProgress, startTransfer } = useWebRTC(info?.code || '', false);
+  const { code }  = useParams<{ code: string }>();
+  const { state, resolveCode, downloadFromServer, reset } = useDownload();
+  const { phase, info, progress, error } = state;
 
   useEffect(() => {
-    if (code) {
-      handleVerify();
-    }
+    if (code) resolveCode(code);
+    return () => reset();
   }, [code]);
 
-  const handleVerify = async () => {
-    if (!code) return;
-    setIsVerifying(true);
-    try {
-      const data = await shareApi.validateCode(code, password || undefined);
-      setInfo(data);
-      setShowPasswordInput(false);
-      setError(null);
-    } catch (err: any) {
-      if (err.response?.status === 401) {
-        setShowPasswordInput(true);
-      } else {
-        setError('Invalid or expired share link');
-      }
-    } finally {
-      setIsVerifying(false);
-    }
-  };
-
-  const handleServerDownload = () => {
-    if (code) {
-      window.open(shareApi.getDownloadUrl(code), '_blank');
-    }
-  };
-
-  if (isVerifying && !info) return (
-    <div className="min-h-screen flex items-center justify-center">
-      <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1 }} className="text-indigo-500">
-        <Zap size={48} />
-      </motion.div>
-    </div>
-  );
-
   return (
-    <div className="min-h-screen pt-32 pb-20 px-6">
-      <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-[-10%] right-[-10%] w-[40%] h-[40%] rounded-full bg-violet-500/10 blur-[120px]" />
-        <div className="absolute bottom-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-indigo-500/10 blur-[120px]" />
-      </div>
+    <div className="min-h-screen flex flex-col items-center justify-center pt-20 pb-16 px-4">
+      <div className="w-full max-w-md space-y-6">
+        <Link
+          to="/"
+          className="inline-flex items-center gap-2 text-sm text-zinc-500 hover:text-zinc-300 transition-colors"
+        >
+          <ArrowLeft size={16} />
+          Back to transfer
+        </Link>
 
-      <main className="relative max-w-3xl mx-auto">
         <AnimatePresence mode="wait">
-          {showPasswordInput ? (
-            <motion.div key="password" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}>
-              <Card className="max-w-md mx-auto p-12 text-center space-y-8">
-                <div className="w-20 h-20 rounded-[2.5rem] bg-indigo-500/10 flex items-center justify-center text-indigo-400 mx-auto">
-                  <Shield size={40} />
-                </div>
-                <div className="space-y-2">
-                  <h2 className="text-3xl font-bold text-white">Protected Link</h2>
-                  <p className="text-zinc-400">Please enter the password to access this file.</p>
-                </div>
-                <div className="space-y-4">
-                  <input
-                    type="password"
-                    placeholder="Enter password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="w-full bg-zinc-800/50 border border-zinc-700 rounded-2xl px-6 py-4 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all text-center"
-                  />
-                  <Button className="w-full" onClick={handleVerify}>Unlock File</Button>
-                </div>
+          {phase === 'resolving' && (
+            <motion.div
+              key="resolving"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="flex flex-col items-center gap-4 py-16"
+            >
+              <Loader2 size={32} className="text-indigo-400 animate-spin" />
+              <p className="text-zinc-400 text-sm">Resolving share code…</p>
+            </motion.div>
+          )}
+
+          {phase === 'error' && (
+            <motion.div
+              key="error"
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+            >
+              <Card className="p-6 border-red-500/20 bg-red-500/5 text-center">
+                <AlertCircle size={36} className="text-red-400 mx-auto mb-4" />
+                <h2 className="text-white font-semibold mb-2">Link not found</h2>
+                <p className="text-sm text-zinc-400 mb-5">
+                  {error || 'This share code is invalid, expired, or has reached its download limit.'}
+                </p>
+                <Link to="/">
+                  <Button variant="outline" size="sm">Go to upload page</Button>
+                </Link>
               </Card>
             </motion.div>
-          ) : error ? (
-            <motion.div key="error" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-              <Card className="p-12 text-center space-y-6">
-                <div className="w-20 h-20 rounded-[2.5rem] bg-red-500/10 flex items-center justify-center text-red-500 mx-auto">
-                  <AlertTriangle size={40} />
+          )}
+
+          {(phase === 'ready' || phase === 'downloading' || phase === 'done') && info && (
+            <motion.div
+              key="ready"
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              className="space-y-4"
+            >
+              <Card className="p-6">
+                {/* File icon + info */}
+                <div className="flex items-start gap-4 mb-6">
+                  <div className="w-14 h-14 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center shrink-0">
+                    <FileText size={26} className="text-indigo-400" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h2 className="text-lg font-semibold text-white truncate mb-1">
+                      {info.fileName}
+                    </h2>
+                    <p className="text-sm text-zinc-400">
+                      {formatBytes(info.fileSize)}
+                      {info.mimeType && (
+                        <span className="ml-2 text-zinc-600">· {info.mimeType}</span>
+                      )}
+                    </p>
+                  </div>
                 </div>
-                <h2 className="text-3xl font-bold text-white">{error}</h2>
-                <Button variant="secondary" onClick={() => window.location.href = '/'}>Go Home</Button>
-              </Card>
-            </motion.div>
-          ) : info && (
-            <motion.div key="content" initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
-              <Card className="p-8 md:p-12">
-                <div className="flex flex-col items-center text-center space-y-6">
-                  <div className="w-24 h-24 rounded-[2.5rem] bg-gradient-to-br from-indigo-600 to-violet-600 flex items-center justify-center text-white glow-indigo shadow-xl relative">
-                    <File size={48} />
-                    <motion.div
-                      animate={{ scale: [1, 1.2, 1], opacity: [0.5, 1, 0.5] }}
-                      transition={{ duration: 2, repeat: Infinity }}
-                      className="absolute -inset-2 rounded-[3rem] border border-indigo-500/30 -z-10"
+                <div className="grid grid-cols-2 gap-3 mb-6">
+                  {info.expiresAt && (
+                    <div className="bg-white/5 rounded-xl p-3 flex items-center gap-2">
+                      <Clock size={14} className="text-zinc-500 shrink-0" />
+                      <div>
+                        <p className="text-xs text-zinc-500">Expires</p>
+                        <p className="text-xs text-zinc-300">{formatDate(info.expiresAt)}</p>
+                      </div>
+                    </div>
+                  )}
+                  {info.maxDownloads && (
+                    <div className="bg-white/5 rounded-xl p-3 flex items-center gap-2">
+                      <DownloadIcon size={14} className="text-zinc-500 shrink-0" />
+                      <div>
+                        <p className="text-xs text-zinc-500">Downloads</p>
+                        <p className="text-xs text-zinc-300">
+                          {info.downloadCount} / {info.maxDownloads}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                  {info.passwordProtected && (
+                    <div className="bg-amber-500/10 rounded-xl p-3 flex items-center gap-2 border border-amber-500/20">
+                      <Lock size={14} className="text-amber-400 shrink-0" />
+                      <p className="text-xs text-amber-400">Password protected</p>
+                    </div>
+                  )}
+                </div>
+                {phase === 'downloading' && (
+                  <div className="mb-4">
+                    <ProgressBar
+                      progress={progress}
+                      label="Downloading…"
+                      color="indigo"
                     />
                   </div>
-                  
-                  <div className="space-y-2">
-                    <h1 className="text-3xl md:text-4xl font-bold text-white tracking-tight">{info.fileName}</h1>
-                    <div className="flex items-center gap-4 justify-center text-zinc-400">
-                      <span className="flex items-center gap-1.5"><Box size={16} /> {formatBytes(info.fileSize)}</span>
-                      <span className="w-1 h-1 rounded-full bg-zinc-700" />
-                      <span className="flex items-center gap-1.5 uppercase tracking-wider text-xs font-semibold">{info.mimeType?.split('/')[1] || 'FILE'}</span>
-                    </div>
-                  </div>
+                )}
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full pt-6 border-t border-white/5">
-                    <div className="p-4 rounded-2xl bg-indigo-500/5 border border-indigo-500/10 group cursor-pointer hover:bg-indigo-500/10 transition-colors">
-                      <div className="flex items-center justify-between mb-3">
-                        <Zap size={20} className="text-indigo-400" />
-                        <span className="text-[10px] font-bold uppercase tracking-widest text-indigo-400 bg-indigo-400/10 px-2 py-0.5 rounded-full">Recommended</span>
-                      </div>
-                      <h4 className="text-lg font-bold text-zinc-100 flex items-center gap-2">
-                        P2P Transfer
-                      </h4>
-                      <p className="text-sm text-zinc-500 mt-1 mb-4">Direct high-speed browser sync.</p>
-                      <Button className="w-full" variant="primary" onClick={startTransfer}>
-                        Connect & Download
-                      </Button>
-                    </div>
-                    
-                    <div className="p-4 rounded-2xl bg-zinc-800/20 border border-white/5 group cursor-pointer hover:bg-zinc-800/40 transition-colors">
-                      <div className="flex items-center justify-between mb-3">
-                        <DownloadIcon size={20} className="text-zinc-500" />
-                      </div>
-                      <h4 className="text-lg font-bold text-zinc-100 italic">
-                        Server Fallback
-                      </h4>
-                      <p className="text-sm text-zinc-500 mt-1 mb-4">Standard secure download.</p>
-                      <Button className="w-full" variant="secondary" onClick={handleServerDownload}>
-                        Standard Download
-                      </Button>
-                    </div>
+                {/* Done */}
+                {phase === 'done' && (
+                  <div className="flex items-center gap-2 mb-4 text-teal-400 text-sm">
+                    <CheckCircle2 size={16} />
+                    Download started successfully
                   </div>
-                </div>
+                )}
+
+                {(phase === 'ready' || phase === 'done') && (
+                  <Button
+                    variant="primary"
+                    className="w-full rounded-xl"
+                    onClick={() => code && downloadFromServer(code)}
+                    disabled={phase === 'downloading'}
+                  >
+                    <DownloadIcon size={18} />
+                    {phase === 'done' ? 'Download again' : 'Download file'}
+                  </Button>
+                )}
               </Card>
 
-              <div className="flex items-center gap-3 justify-center text-zinc-500 bg-white/5 px-6 py-4 rounded-2xl border border-white/5">
-                <Info size={18} />
-                <p className="text-sm">Secure end-to-end encrypted transfer. Your data never touches our storage in P2P mode.</p>
+              <div className="text-center">
+                <p className="text-xs text-zinc-600">
+                  Share code:{' '}
+                  <span className="font-mono text-zinc-400 tracking-widest">
+                    {code}
+                  </span>
+                </p>
               </div>
             </motion.div>
           )}
         </AnimatePresence>
-      </main>
+
+      </div>
     </div>
   );
 }
