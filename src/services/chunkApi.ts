@@ -1,29 +1,33 @@
 import apiClient from './apiClient';
+import type { ChunkListResponse, ChunkUploadResponse } from '../types/api';
 
 export const chunkApi = {
-  getUploadedChunks: async (fileId: string): Promise<number[]> => {
-    try {
-      const { data } = await apiClient.get<{ uploadedChunks: number[] }>(`/files/${fileId}/chunks`);
-      console.log('Uploaded chunks response:', data);
-      return data.uploadedChunks || [];
-    } catch (error: any) {
-      console.error('Get uploaded chunks error:', error.response?.data);
-      return [];
-    }
+  async getUploadedChunks(fileId: string): Promise<number[]> {
+    const { data } = await apiClient.get<ChunkListResponse>(`/files/${fileId}/chunks`);
+    return data.uploadedChunks ?? [];
   },
 
-  uploadChunk: async (fileId: string, chunkIndex: number, chunk: Blob, onProgress: (p: number) => void): Promise<void> => {
-    const formData = new FormData();
-    formData.append('file', chunk);  // Backend expects 'file' not 'chunk'
-    
-    await apiClient.post(`/files/${fileId}/chunks/${chunkIndex}`, formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-      onUploadProgress: (progressEvent) => {
-        const percentCompleted = Math.round((progressEvent.loaded * 100) / (progressEvent.total || 1));
-        onProgress(percentCompleted);
-      },
-    });
+  async uploadChunk(
+    fileId: string,
+    index: number,
+    blob: Blob,
+    onProgress?: (percent: number) => void
+  ): Promise<ChunkUploadResponse> {
+    const form = new FormData();
+    form.append('file', blob);
+
+    const { data } = await apiClient.post<ChunkUploadResponse>(
+      `/files/${fileId}/chunks/${index}`,
+      form,
+      {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        onUploadProgress: (e) => {
+          if (onProgress && e.total) {
+            onProgress(Math.round((e.loaded / e.total) * 100));
+          }
+        },
+      }
+    );
+    return data;
   },
 };

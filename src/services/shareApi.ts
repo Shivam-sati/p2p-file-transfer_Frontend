@@ -1,18 +1,24 @@
 import apiClient from './apiClient';
-import { ShareConfig, ShareInfo } from '../types/api';
+import type { ShareInfoResponse, ShareCreateRequest } from '../types/api';
 
 export const shareApi = {
-  createShare: async (fileId: string, config: ShareConfig): Promise<ShareInfo> => {
-    const { data } = await apiClient.post<ShareInfo>(`/files/${fileId}/share`, config);
+  async createShare(
+    fileId: string,
+    options: ShareCreateRequest = { expiryHours: 72 }
+  ): Promise<ShareInfoResponse> {
+    const { data } = await apiClient.post<ShareInfoResponse>(
+      `/files/${fileId}/share`,
+      options
+    );
     return data;
   },
 
-  validateCode: async (code: string, password?: string): Promise<ShareInfo> => {
-    const { data } = await apiClient.get<ShareInfo>(`/share/${code}`, {
-      params: password ? { password } : {},
-    });
+  async resolveShare(code: string): Promise<ShareInfoResponse> {
+    const { data } = await apiClient.get<ShareInfoResponse>(`/share/${code}`);
     return data;
   },
 
-  getDownloadUrl: (code: string) => `/api/v1/share/${code}/download`,
+  getDownloadUrl(code: string): string {
+    return `/api/v1/share/${code}/download`;
+  },
 };

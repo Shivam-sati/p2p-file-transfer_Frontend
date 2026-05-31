@@ -1,34 +1,39 @@
 import apiClient from './apiClient';
-import { FileMetadata } from '../types/api';
+import type {
+  FileInitResponse,
+  FileStatusResponse,
+  MergeResponse,
+} from '../types/api';
 
 export const fileApi = {
-  init: async (name: string, size: number, type: string, totalChunks: number, checksumSha256: string): Promise<string> => {
-    try {
-      const { data } = await apiClient.post<{ fileId: string }>('/files/init', {
-        originalName: name,
-        fileSize: size,
-        mimeType: type,
-        totalChunks,
-        checksumSha256
-      });
-      return data.fileId;
-    } catch (error: any) {
-      console.error('File init error:', error.response?.data);
-      console.error('Request payload:', { originalName: name, fileSize: size, mimeType: type, totalChunks, checksumSha256 });
-      throw error;
-    }
+  async init(
+    originalName: string,
+    fileSize: number,
+    mimeType: string,
+    totalChunks: number,
+    checksumSha256: string
+  ): Promise<string> {
+    const { data } = await apiClient.post<FileInitResponse>('/files/init', {
+      originalName,
+      fileSize,
+      mimeType: mimeType || 'application/octet-stream',
+      totalChunks,
+      checksumSha256,
+    });
+    return data.fileId;
   },
 
-  getMetadata: async (fileId: string): Promise<FileMetadata> => {
-    const { data } = await apiClient.get<FileMetadata>(`/files/${fileId}`);
+  async getStatus(fileId: string): Promise<FileStatusResponse> {
+    const { data } = await apiClient.get<FileStatusResponse>(`/files/${fileId}`);
     return data;
   },
 
-  deleteFile: async (fileId: string): Promise<void> => {
-    await apiClient.delete(`/files/${fileId}`);
+  async mergeChunks(fileId: string): Promise<MergeResponse> {
+    const { data } = await apiClient.post<MergeResponse>(`/files/${fileId}/merge`);
+    return data;
   },
 
-  mergeChunks: async (fileId: string): Promise<void> => {
-    await apiClient.post(`/files/${fileId}/merge`);
+  async deleteFile(fileId: string): Promise<void> {
+    await apiClient.delete(`/files/${fileId}`);
   },
 };
