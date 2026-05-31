@@ -1,35 +1,95 @@
 import { create } from 'zustand';
 
+export type UploadPhase =
+  | 'idle'
+  | 'hashing'
+  | 'uploading'
+  | 'merging'
+  | 'sharing'
+  | 'done'
+  | 'error';
+
 interface UploadState {
-  fileId: string | null;
-  fileName: string | null;
-  fileSize: number;
-  progress: number;
-  isUploading: boolean;
-  isPaused: boolean;
-  error: string | null;
-  
-  setUploadInfo: (info: { fileId: string; fileName: string; fileSize: number }) => void;
-  updateProgress: (progress: number) => void;
-  startUpload: () => void;
-  pauseUpload: () => void;
-  setError: (error: string | null) => void;
-  reset: () => void;
+  phase:          UploadPhase;
+  isUploading:    boolean;
+  progress:       number;
+  speedBps:       number;
+  etaSeconds:     number;
+  chunksUploaded: number;
+  totalChunks:    number;
+  fileId:         string | null;
+  fileName:       string;
+  fileSize:       number;
+  shareCode:      string | null;
+  shareUrl:       string | null;
+  error:          string | null;
+  isPaused:       boolean;
 }
 
-export const useUploadStore = create<UploadState>((set) => ({
-  fileId: null,
-  fileName: null,
-  fileSize: 0,
-  progress: 0,
-  isUploading: false,
-  isPaused: false,
-  error: null,
+interface UploadActions {
+  startUpload:     () => void;
+  setUploadInfo:   (info: { fileId: string | null; fileName: string; fileSize: number }) => void;
+  updateProgress:  (progress: number) => void;
+  updateSpeed:     (speedBps: number, etaSeconds: number) => void;
+  updateChunks:    (uploaded: number, total: number) => void;
+  setPhase:        (phase: UploadPhase) => void;
+  setShareResult:  (code: string, url: string) => void;
+  setError:        (error: string) => void;
+  pauseUpload:     () => void;
+  resumeUpload:    () => void;
+  reset:           () => void;
+}
 
-  setUploadInfo: (info) => set(info),
-  updateProgress: (progress) => set({ progress }),
-  startUpload: () => set({ isUploading: true, isPaused: false, error: null }),
-  pauseUpload: () => set({ isUploading: false, isPaused: true }),
-  setError: (error) => set({ error, isUploading: false }),
-  reset: () => set({ fileId: null, fileName: null, fileSize: 0, progress: 0, isUploading: false, isPaused: false, error: null }),
+const INITIAL: UploadState = {
+  phase:          'idle',
+  isUploading:    false,
+  progress:       0,
+  speedBps:       0,
+  etaSeconds:     -1,
+  chunksUploaded: 0,
+  totalChunks:    0,
+  fileId:         null,
+  fileName:       '',
+  fileSize:       0,
+  shareCode:      null,
+  shareUrl:       null,
+  error:          null,
+  isPaused:       false,
+};
+
+export const useUploadStore = create<UploadState & UploadActions>((set) => ({
+  ...INITIAL,
+
+  startUpload: () =>
+    set({ ...INITIAL, phase: 'hashing', isUploading: true }),
+
+  setUploadInfo: ({ fileId, fileName, fileSize }) =>
+    set({ fileId, fileName, fileSize }),
+
+  updateProgress: (progress) =>
+    set({ progress }),
+
+  updateSpeed: (speedBps, etaSeconds) =>
+    set({ speedBps, etaSeconds }),
+
+  updateChunks: (chunksUploaded, totalChunks) =>
+    set({ chunksUploaded, totalChunks }),
+
+  setPhase: (phase) =>
+    set({ phase }),
+
+  setShareResult: (shareCode, shareUrl) =>
+    set({ shareCode, shareUrl, phase: 'done', progress: 100 }),
+
+  setError: (error) =>
+    set({ error, phase: 'error', isUploading: false }),
+
+  pauseUpload: () =>
+    set({ isPaused: true }),
+
+  resumeUpload: () =>
+    set({ isPaused: false }),
+
+  reset: () =>
+    set({ ...INITIAL }),
 }));
