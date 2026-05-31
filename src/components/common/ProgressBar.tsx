@@ -2,14 +2,20 @@ import { motion } from 'motion/react';
 import { cn } from '../../lib/utils';
 
 interface ProgressBarProps {
-  progress: number;
+  progress:   number;
   className?: string;
-  label?: string;
-  size?: 'sm' | 'md' | 'lg';
-  color?: 'indigo' | 'teal' | 'violet';
+  label?:     string;
+  size?:      'sm' | 'md' | 'lg';
+  color?:     'indigo' | 'teal' | 'violet';
 }
 
-export const ProgressBar = ({ progress, className, label, size = 'md', color = 'indigo' }: ProgressBarProps) => {
+export const ProgressBar = ({
+  progress,
+  className,
+  label,
+  size  = 'md',
+  color = 'indigo',
+}: ProgressBarProps) => {
   const heights = {
     sm: 'h-1',
     md: 'h-2.5',
@@ -18,7 +24,7 @@ export const ProgressBar = ({ progress, className, label, size = 'md', color = '
 
   const colors = {
     indigo: 'bg-gradient-to-r from-indigo-500 to-indigo-400 shadow-[0_0_8px_rgba(99,102,241,0.5)]',
-    teal: 'bg-gradient-to-r from-teal-400 to-indigo-500 shadow-[0_0_8px_rgba(45,212,191,0.5)]',
+    teal:   'bg-gradient-to-r from-teal-400 to-indigo-500 shadow-[0_0_8px_rgba(45,212,191,0.5)]',
     violet: 'bg-gradient-to-r from-violet-500 to-indigo-500 shadow-[0_0_8px_rgba(139,92,246,0.5)]',
   };
 
@@ -33,9 +39,9 @@ export const ProgressBar = ({ progress, className, label, size = 'md', color = '
       <div className={cn('w-full bg-zinc-800/50 rounded-full overflow-hidden', heights[size])}>
         <motion.div
           initial={{ width: 0 }}
-          animate={{ width: `${progress}%` }}
+          animate={{ width: `${Math.min(100, progress)}%` }}
           transition={{ duration: 0.5, ease: 'easeOut' }}
-          className={cn('h-full transition-all duration-500', colors[color])}
+          className={cn('h-full', colors[color])}
         />
       </div>
     </div>

@@ -7,13 +7,15 @@ export const Navbar = () => {
   const location = useLocation();
 
   const navItems = [
-    { path: '/', label: 'Transfer', icon: Send },
-    { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { path: '/',          label: 'Transfer',   icon: Send          },
+    { path: '/dashboard', label: 'Dashboard',  icon: LayoutDashboard },
   ];
 
   return (
     <nav className="fixed top-6 left-1/2 -translate-x-1/2 z-50">
       <div className="glass rounded-2xl px-2 py-2 flex items-center gap-1 shadow-lg shadow-indigo-500/10">
+
+        {/* Logo */}
         <div className="flex items-center gap-2 px-4 mr-4 border-r border-white/10">
           <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-indigo-500 to-teal-400 flex items-center justify-center text-white shadow-lg shadow-indigo-500/20">
             <Box size={20} />
@@ -22,7 +24,8 @@ export const Navbar = () => {
             NEXUS P2P
           </span>
         </div>
-        
+
+        {/* Nav items */}
         {navItems.map((item) => {
           const isActive = location.pathname === item.path;
           return (
